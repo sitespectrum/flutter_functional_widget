@@ -99,17 +99,17 @@ class FunctionalWidgetGenerator
     return _class.accept(_emitter).toString();
   }
 
-  FunctionElement _checkValidElement(Element element, String className) {
-    if (element is! FunctionElement) {
+  TopLevelFunctionElement _checkValidElement(Element element, String className) {
+    if (element is! TopLevelFunctionElement) {
       throw InvalidGenerationSourceError(
         'Error, the decorated element is not a function',
         element: element,
       );
     }
     final function = element;
-    if (function.isAsynchronous ||
+    if (function.type.isDartAsyncFuture ||
         function.isExternal ||
-        function.isGenerator ||
+        function.type.isDartAsyncStream ||
         function.returnType.getDisplayString() != 'Widget') {
       throw InvalidGenerationSourceError(
         'Invalid prototype. The function must be synchronous, top level, and return a Widget',
@@ -127,7 +127,7 @@ class FunctionalWidgetGenerator
   }
 
   Future<Spec> _makeClassFromFunctionElement(
-    FunctionElement functionElement,
+    TopLevelFunctionElement functionElement,
     FunctionalWidget annotation,
     BuildStep buildStep,
     String className,
@@ -145,7 +145,7 @@ class FunctionalWidgetGenerator
         _defaultOptions.debugFillProperties ??
         false) {
       overrideDebugFillProperties = await _overrideDebugFillProperties(
-          userDefined, functionElement.parameters, buildStep);
+          userDefined, functionElement.formalParameters, buildStep);
     }
 
     return Class(
@@ -200,7 +200,7 @@ class FunctionalWidgetGenerator
   }
 
   Future<Method?> _overrideDebugFillProperties(List<Parameter> userFields,
-      List<ParameterElement> elements, BuildStep buildStep) async {
+      List<FormalParameterElement> elements, BuildStep buildStep) async {
     if (userFields.isEmpty) {
       return null;
     }
@@ -228,7 +228,7 @@ class FunctionalWidgetGenerator
   }
 
   Future<Code> _parameterToDiagnostic(Parameter parameter,
-      ParameterElement element, BuildStep buildStep) async {
+      FormalParameterElement element, BuildStep buildStep) async {
     String? propertyType;
     switch (parameter.type!.symbol) {
       case 'int':
@@ -252,13 +252,13 @@ class FunctionalWidgetGenerator
   }
 
   Future<String> _getFallbackElementDiagnostic(
-      ParameterElement element, BuildStep buildStep) async {
+      FormalParameterElement element, BuildStep buildStep) async {
     final parsedDynamicType = await tryParseDynamicType(element, buildStep);
     return 'DiagnosticsProperty<${element.type is DynamicType ? parsedDynamicType : element.type.getDisplayString()}>';
   }
 
   String? _tryParseFunctionToDiagnostic(
-      ParameterElement element, String? propertyType) {
+      FormalParameterElement element, String? propertyType) {
     final kind = element.type.element?.kind;
     if (kind == ElementKind.FUNCTION ||
         kind == ElementKind.FUNCTION_TYPE_ALIAS ||
@@ -270,7 +270,7 @@ class FunctionalWidgetGenerator
   }
 
   String? _tryParseClassToEnumDiagnostic(
-      ParameterElement element, String? propertyType) {
+      FormalParameterElement element, String? propertyType) {
     if (element.type.element is EnumElement) {
       propertyType = 'EnumProperty<${element.type.getDisplayString()}>';
     }
@@ -281,7 +281,7 @@ class FunctionalWidgetGenerator
     String functionName, {
     required List<Expression> positional,
     required Map<String, Expression> named,
-    required FunctionElement function,
+    required TopLevelFunctionElement function,
     bool hasWidgetRefParameter = false,
   }) {
     return Method(

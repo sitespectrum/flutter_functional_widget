@@ -197,7 +197,7 @@ class _ResolverImpl implements Resolver {
   }
 
   @override
-  Future<AstNode?> astNodeFor(Element element, {bool resolve = false}) {
+  Future<AstNode?> astNodeFor(Fragment element, {bool resolve = false}) {
     return Future.error('UnimplementedError');
   }
 

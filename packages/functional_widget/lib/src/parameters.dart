@@ -23,9 +23,9 @@ class FunctionParameters {
   };
 
   static Future<FunctionParameters> parseFunctionElement(
-      FunctionElement element, BuildStep buildStep) async {
+      TopLevelFunctionElement element, BuildStep buildStep) async {
     final parsedParameters =
-        element.parameters.map((p) => _parseParameter(p, buildStep));
+        element.formalParameters.map((p) => _parseParameter(p, buildStep));
     final elementParams = await Future.wait(parsedParameters);
 
     return FunctionParameters._(elementParams.toList());
@@ -79,17 +79,17 @@ bool _isKey(Parameter param) =>
     param.type?.symbol == 'Key' || param.type?.symbol == 'Key?';
 
 Future<Parameter> _parseParameter(
-    ParameterElement parameter, BuildStep buildStep) async {
+    FormalParameterElement parameter, BuildStep buildStep) async {
   final _type = await _parameterToReference(parameter, buildStep);
 
   return Parameter(
     (b) => b
-      ..name = parameter.name
+      ..name = parameter.name ?? ''
       ..defaultTo = parameter.defaultValueCode != null
           ? Code(parameter.defaultValueCode!)
           : null
       ..docs.add(parameter.documentationComment ?? '')
-      ..annotations.addAll(parameter.metadata.map((meta) {
+      ..annotations.addAll(parameter.metadata.annotations.map((meta) {
         return CodeExpression(Code(meta.toSource().replaceFirst('@', '')));
       }))
       ..named = parameter.isNamed
@@ -99,7 +99,7 @@ Future<Parameter> _parseParameter(
 }
 
 Future<Reference> _parameterToReference(
-    ParameterElement element, BuildStep buildStep) async {
+    FormalParameterElement element, BuildStep buildStep) async {
   if (element.type is element_type.DynamicType) {
     return refer(await tryParseDynamicType(element, buildStep));
   }
@@ -122,27 +122,27 @@ Future<Reference> _typeToReference(
 Future<FunctionType> _functionTypedElementToFunctionType(
     element_type.FunctionType element, BuildStep buildStep) async {
   final _returnType = await _typeToReference(element.returnType, buildStep);
-  final _parameterTypes = await Future.wait(element.typeFormals.map(
+  final _parameterTypes = await Future.wait(element.typeParameters.map(
     (f) => _typeToReference(
         f.instantiate(nullabilitySuffix: NullabilitySuffix.none), buildStep),
   ));
   final _requiredParameterReferences =
       await _mapOrListParameterReferences<Reference>(
-    element.parameters,
+    element.formalParameters,
     (p) => p.isRequired,
     (p) => p.type!,
     buildStep,
   );
   final _namedParameterEntries =
       await _mapOrListParameterReferences<MapEntry<String, Reference>>(
-    element.parameters,
+    element.formalParameters,
     (p) => p.isNamed,
     (p) => MapEntry(p.name, p.type!),
     buildStep,
   );
   final _optionalParameterReferences =
       await _mapOrListParameterReferences<Reference>(
-    element.parameters,
+    element.formalParameters,
     (p) => p.isOptionalPositional,
     (p) => p.type!,
     buildStep,
@@ -160,8 +160,8 @@ Future<FunctionType> _functionTypedElementToFunctionType(
 }
 
 Future<Iterable<T>> _mapOrListParameterReferences<T>(
-  List<ParameterElement> params,
-  bool Function(ParameterElement param) filterFunction,
+  List<FormalParameterElement> params,
+  bool Function(FormalParameterElement param) filterFunction,
   T Function(Parameter p) mapOrListFunction,
   BuildStep buildStep,
 ) async {
@@ -174,8 +174,8 @@ Future<Iterable<T>> _mapOrListParameterReferences<T>(
 }
 
 Future<String> tryParseDynamicType(
-    ParameterElement element, BuildStep buildStep) async {
-  final node = await buildStep.resolver.astNodeFor(element);
+    FormalParameterElement element, BuildStep buildStep) async {
+  final node = await buildStep.resolver.astNodeFor(element.firstFragment);
   final parameter = node is DefaultFormalParameter ? node.parameter : node;
   if (parameter is SimpleFormalParameter && parameter.type != null) {
     return parameter.type!.beginToken.toString();
